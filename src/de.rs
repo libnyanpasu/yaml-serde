@@ -774,6 +774,75 @@ impl<'de, 'variant> de::EnumAccess<'de> for EnumAccess<'de, '_, 'variant> {
     }
 }
 
+/// Presents a tagged node `!Tag value` as the single-entry map `{Tag: value}`.
+///
+/// Serde buffers `#[serde(flatten)]` fields and untagged enums in its private
+/// `Content` type, whose visitor rejects `visit_enum`. A one-entry map is the
+/// externally tagged enum representation `Content` can hold and replay.
+struct TaggedMapAccess<'de, 'document, 'variant> {
+    access: Option<EnumAccess<'de, 'document, 'variant>>,
+    value: Option<DeserializerFromEvents<'de, 'variant>>,
+}
+
+impl<'de> de::MapAccess<'de> for TaggedMapAccess<'de, '_, '_> {
+    type Error = Error;
+
+    fn next_key_seed<K>(&mut self, seed: K) -> Result<Option<K::Value>>
+    where
+        K: DeserializeSeed<'de>,
+    {
+        let Some(access) = self.access.take() else {
+            return Ok(None);
+        };
+        let (key, value) = de::EnumAccess::variant_seed(access, seed)?;
+        self.value = Some(value);
+        Ok(Some(key))
+    }
+
+    fn next_value_seed<V>(&mut self, seed: V) -> Result<V::Value>
+    where
+        V: DeserializeSeed<'de>,
+    {
+        let mut value = self
+            .value
+            .take()
+            .expect("MapAccess::next_value called before next_key");
+        seed.deserialize(&mut value)
+    }
+}
+
+/// Whether `T` is serde's private buffer type for flattened and untagged
+/// content. Serde offers no public way to detect it, so match its type path,
+/// e.g. `serde_core::private::content::Content<'_>`.
+pub(crate) fn is_serde_content<T>() -> bool {
+    let name = core::any::type_name::<T>();
+    let path = name.split_once('<').map_or(name, |(path, _)| path);
+    path.starts_with("serde") && path.ends_with("::Content")
+}
+
+fn visit_tagged<'de, 'document, V>(
+    de: &mut DeserializerFromEvents<'de, 'document>,
+    visitor: V,
+    tag: &'document str,
+) -> Result<V::Value>
+where
+    V: Visitor<'de>,
+{
+    let access = EnumAccess {
+        de,
+        name: None,
+        tag,
+    };
+    if is_serde_content::<V::Value>() {
+        visitor.visit_map(TaggedMapAccess {
+            access: Some(access),
+            value: None,
+        })
+    } else {
+        visitor.visit_enum(access)
+    }
+}
+
 impl<'de> de::VariantAccess<'de> for DeserializerFromEvents<'de, '_> {
     type Error = Error;
 
@@ -1222,33 +1291,21 @@ impl<'de> de::Deserializer<'de> for &mut DeserializerFromEvents<'de, '_> {
                 Event::Scalar(scalar) => {
                     if let Some(tag) = enum_tag(scalar.tag.as_ref(), tagged_already) {
                         *self.pos -= 1;
-                        break visitor.visit_enum(EnumAccess {
-                            de: self,
-                            name: None,
-                            tag,
-                        });
+                        break visit_tagged(self, visitor, tag);
                     }
                     break visit_scalar(visitor, scalar, tagged_already);
                 }
                 Event::SequenceStart(sequence) => {
                     if let Some(tag) = enum_tag(sequence.tag.as_ref(), tagged_already) {
                         *self.pos -= 1;
-                        break visitor.visit_enum(EnumAccess {
-                            de: self,
-                            name: None,
-                            tag,
-                        });
+                        break visit_tagged(self, visitor, tag);
                     }
                     break self.visit_sequence(visitor, mark);
                 }
                 Event::MappingStart(mapping) => {
                     if let Some(tag) = enum_tag(mapping.tag.as_ref(), tagged_already) {
                         *self.pos -= 1;
-                        break visitor.visit_enum(EnumAccess {
-                            de: self,
-                            name: None,
-                            tag,
-                        });
+                        break visit_tagged(self, visitor, tag);
                     }
                     break self.visit_mapping(visitor, mark);
                 }

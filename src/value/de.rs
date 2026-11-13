@@ -1,3 +1,4 @@
+use crate::de::is_serde_content;
 use crate::value::tagged::{self, TagStringVisitor};
 use crate::value::TaggedValue;
 use crate::{number, Error, Mapping, Sequence, Value};
@@ -7,6 +8,7 @@ use alloc::string::String;
 use alloc::vec;
 use alloc::vec::Vec;
 use core::fmt;
+use core::iter;
 use core::slice;
 use serde::de::value::{BorrowedStrDeserializer, StrDeserializer};
 use serde::de::{
@@ -210,6 +212,13 @@ impl<'de> Deserializer<'de> for Value {
             Value::String(v) => visitor.visit_string(v),
             Value::Sequence(v) => visit_sequence(v, visitor),
             Value::Mapping(v) => visit_mapping(v, visitor),
+            // Same `{Tag: value}` presentation as the event deserializer's
+            // `TaggedMapAccess`, for serde's flatten/untagged buffer.
+            Value::Tagged(tagged) if is_serde_content::<V::Value>() => {
+                let TaggedValue { tag, value } = *tagged;
+                let tag = tagged::nobang(&tag.string).to_owned();
+                visitor.visit_map(de::value::MapDeserializer::new(iter::once((tag, value))))
+            }
             Value::Tagged(tagged) => visitor.visit_enum(*tagged),
         }
     }
@@ -727,6 +736,9 @@ impl<'de> Deserializer<'de> for &'de Value {
             Value::String(v) => visitor.visit_borrowed_str(v),
             Value::Sequence(v) => visit_sequence_ref(v, visitor),
             Value::Mapping(v) => visit_mapping_ref(v, visitor),
+            Value::Tagged(tagged) if is_serde_content::<V::Value>() => {
+                Value::Tagged(tagged.clone()).deserialize_any(visitor)
+            }
             Value::Tagged(tagged) => visitor.visit_enum(&**tagged),
         }
     }
