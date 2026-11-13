@@ -243,6 +243,65 @@ fn test_enum_representations() {
 }
 
 #[test]
+fn test_enum_in_flatten() {
+    #[derive(Deserialize, PartialEq, Debug)]
+    enum Enum {
+        Unit,
+        Newtype(String),
+        Tuple(u8, u8),
+        Struct { x: u8 },
+    }
+    #[derive(Deserialize, PartialEq, Debug)]
+    struct Inner {
+        a: Enum,
+    }
+    #[derive(Deserialize, PartialEq, Debug)]
+    struct Outer {
+        #[serde(flatten)]
+        inner: Inner,
+    }
+
+    let cases = [
+        ("a: Unit\n", Enum::Unit),
+        ("a: !Newtype x\n", Enum::Newtype("x".to_owned())),
+        ("a: !Tuple [1, 2]\n", Enum::Tuple(1, 2)),
+        ("a: !Struct {x: 3}\n", Enum::Struct { x: 3 }),
+    ];
+    for (yaml, a) in cases {
+        let inner = Inner { a };
+        test_de(yaml, &inner);
+        test_de(yaml, &Outer { inner });
+    }
+
+    // A tag without a value cannot round-trip through serde's buffer:
+    // https://github.com/serde-rs/serde/issues/1183
+    let yaml = "a: !Newtype\n";
+    assert!(yaml_serde::from_str::<Outer>(yaml).is_err());
+    yaml_serde::from_str::<Value>(yaml).unwrap();
+    yaml_serde::from_str::<serde::de::IgnoredAny>(yaml).unwrap();
+}
+
+#[test]
+fn test_enum_in_untagged() {
+    #[derive(Deserialize, PartialEq, Debug)]
+    enum Enum {
+        Newtype(String),
+    }
+    #[derive(Deserialize, PartialEq, Debug)]
+    #[serde(untagged)]
+    enum Untagged {
+        Enum(Enum),
+        Number(u8),
+    }
+
+    test_de(
+        "!Newtype x\n",
+        &Untagged::Enum(Enum::Newtype("x".to_owned())),
+    );
+    test_de("1\n", &Untagged::Number(1));
+}
+
+#[test]
 fn test_number_as_string() {
     #[derive(Deserialize, PartialEq, Debug)]
     struct Num {
