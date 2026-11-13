@@ -9,6 +9,7 @@ use serde::{forward_to_deserialize_any, Deserialize, Deserializer, Serialize, Se
 
 /// Represents a YAML number, whether integer or floating point.
 #[derive(Clone, PartialEq, PartialOrd)]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
 pub struct Number {
     n: N,
 }
@@ -17,6 +18,7 @@ pub struct Number {
 // https://github.com/Manishearth/rust-clippy/issues/1241
 #[allow(clippy::enum_variant_names)]
 #[derive(Copy, Clone)]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
 enum N {
     PosInt(u64),
     /// Always less than zero.

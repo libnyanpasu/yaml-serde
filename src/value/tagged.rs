@@ -19,6 +19,7 @@ use serde::ser::{Serialize, SerializeMap, Serializer};
 /// Refer to the example code on [`TaggedValue`] for an example of deserializing
 /// tagged values.
 #[derive(Clone)]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
 pub struct Tag {
     pub(crate) string: String,
 }
@@ -50,6 +51,7 @@ pub struct Tag {
 /// assert!(data["scalar"].tag == "!Thing");
 /// ```
 #[derive(Clone, PartialEq, PartialOrd, Hash, Debug)]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
 pub struct TaggedValue {
     #[allow(missing_docs)]
     pub tag: Tag,
