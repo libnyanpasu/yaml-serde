@@ -184,6 +184,8 @@
 #[cfg(feature = "std")]
 extern crate std;
 
+// `specta::Type` derives expand to a bare `vec!`.
+#[cfg_attr(feature = "specta", macro_use)]
 extern crate alloc;
 
 #[cfg(feature = "std")]

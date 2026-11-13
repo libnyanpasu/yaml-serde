@@ -26,6 +26,7 @@ pub use crate::number::Number;
 
 /// Represents any valid YAML value.
 #[derive(Clone, PartialEq, PartialOrd)]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
 pub enum Value {
     /// Represents a YAML null value.
     Null,

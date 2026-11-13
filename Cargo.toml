@@ -14,6 +14,7 @@ rust-version = "1.82"
 [features]
 default = ["std"]
 std = ["serde/std", "indexmap/std"]
+specta = ["std", "dep:specta"]
 
 [dependencies]
 indexmap = { version = "2.2.1", default-features = false }
@@ -21,6 +22,7 @@ itoa = "1.0"
 ryu = "1.0"
 serde = { version = "1.0.195", default-features = false, features = ["alloc"] }
 libyaml-rs = "0.3"
+specta = { version = "2.0.0-rc.22", optional = true, features = ["derive", "indexmap"] }
 
 [dev-dependencies]
 anyhow = "1.0.79"

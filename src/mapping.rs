@@ -68,6 +68,7 @@ type MapImpl = IndexMap<Value, Value, MapHasher>;
 
 /// A YAML mapping in which the keys and values are both `yaml_serde::Value`.
 #[derive(Clone, Default, Eq, PartialEq)]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
 pub struct Mapping {
     map: MapImpl,
 }
